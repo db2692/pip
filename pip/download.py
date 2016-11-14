@@ -50,6 +50,12 @@ from pip._vendor.lockfile import LockError
 from pip._vendor.six.moves import xmlrpc_client
 
 
+## TUF INTEGRATION
+# Imports
+import tuf.client.updater
+from simple_settings import settings
+
+
 __all__ = ['get_file_content',
            'is_url', 'url_to_path', 'path_to_url',
            'is_archive_file', 'unpack_vcs_link',
@@ -831,6 +837,37 @@ def unpack_url(link, location, download_dir=None,
 
 def _download_http_url(link, session, temp_dir, hashes):
     """Download link url into temp_dir using provided session"""
+
+    
+    ## TUF INTEGRATION BEGIN
+    # Refresh Metadata
+    settings.repository_directory = '/path/to/client-repository'
+    repository_mirrors = {'mirror1': {'url_prefix': 'http://localhost:8000',
+                                      'metadata_path': 'metadata',
+                                      'targets_path': 'targets',
+                                      'confined_target_dirs': ['']}}
+    updater = tuf.client.updater.Updater('updater', repository_mirrors)
+    updater.refresh()
+
+    # Set Destination Directory
+    destination_directory = '/path/to/destination'
+
+    # Get the specific targets
+    target = updater.get_one_valid_targetinfo('file1.txt')
+    updated_target = updater.updated_targets([target], destination_directory)
+
+    # Download targets
+    for target in updated_target:
+        updater.download_target(target, destination_directory)
+        target_path = target['filepath']
+        target_length = target['fileinfo']['length']
+        target_hashes = target['fileinfo']['hashes']
+        logger.info('Target path, length and hashes %s%s%s\n', target_path, target_length, target_hashes)
+
+    logger.info('Link %s\n Temp dir %s', link.url, temp_dir)
+    ## TUF INTEGRATION END
+
+    
     target_url = link.url.split('#', 1)[0]
     try:
         resp = session.get(
