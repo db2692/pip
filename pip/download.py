@@ -838,11 +838,15 @@ def unpack_url(link, location, download_dir=None,
 def _download_http_url(link, session, temp_dir, hashes):
     """Download link url into temp_dir using provided session"""
 
-    
-    ## TUF INTEGRATION BEGIN
+  
+    ## TUF INTEGRATION
+    # Get distribution filename
+    target_url = link.url.split('#', 1)[0]
+    dist_filename = target_url.split('/')[-1]
+
     # Refresh Metadata
     settings.repository_directory = '/path/to/client-repository'
-    repository_mirrors = {'mirror1': {'url_prefix': 'http://localhost:8000',
+    repository_mirrors = {'mirror1': {'url_prefix': 'http://54.191.146.167/repository',
                                       'metadata_path': 'metadata',
                                       'targets_path': 'targets',
                                       'confined_target_dirs': ['']}}
@@ -850,25 +854,27 @@ def _download_http_url(link, session, temp_dir, hashes):
     updater.refresh()
 
     # Set Destination Directory
-    destination_directory = '/path/to/destination'
+    destination_directory = temp_dir
 
-    # Get the specific targets
-    target = updater.get_one_valid_targetinfo('file1.txt')
-    updated_target = updater.updated_targets([target], destination_directory)
+    # Download from the repository mirror if necessary
+    try:
+        # Get the specific targets
+        target = updater.get_one_valid_targetinfo(dist_filename)
+        updated_target = updater.updated_targets([target], destination_directory)
 
-    # Download targets
-    for target in updated_target:
-        updater.download_target(target, destination_directory)
-        target_path = target['filepath']
-        target_length = target['fileinfo']['length']
-        target_hashes = target['fileinfo']['hashes']
-        logger.info('Target path, length and hashes %s%s%s\n', target_path, target_length, target_hashes)
-
-    logger.info('Link %s\n Temp dir %s', link.url, temp_dir)
-    ## TUF INTEGRATION END
-
+        # Download targets
+        for target in updated_target:
+            updater.download_target(target, destination_directory)
+            target_path = target['filepath']
+            target_length = target['fileinfo']['length']
+            target_hashes = target['fileinfo']['hashes']
+            logger.info('Link %s\n Temp dir %s', dist_filename, temp_dir)
+    except:
+        logger.critical(
+            "Error : target not found. Exiting."
+        )
+        raise
     
-    target_url = link.url.split('#', 1)[0]
     try:
         resp = session.get(
             target_url,
@@ -919,9 +925,15 @@ def _download_http_url(link, session, temp_dir, hashes):
         ext = os.path.splitext(resp.url)[1]
         if ext:
             filename += ext
-    file_path = os.path.join(temp_dir, filename)
-    with open(file_path, 'wb') as content_file:
-        _download_url(resp, link, content_file, hashes)
+
+            
+    file_path = os.path.join(temp_dir, dist_filename)
+
+    # Prevent download from PyPI
+    # with open(file_path, 'wb') as content_file:
+    #     _download_url(resp, link, content_file, hashes)
+
+
     return file_path, content_type
 
 
