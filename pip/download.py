@@ -54,7 +54,7 @@ from pip._vendor.six.moves import xmlrpc_client
 # Imports
 import tuf.client.updater
 from simple_settings import settings
-
+from pip.models import TUFConfig
 
 __all__ = ['get_file_content',
            'is_url', 'url_to_path', 'path_to_url',
@@ -838,18 +838,16 @@ def unpack_url(link, location, download_dir=None,
 def _download_http_url(link, session, temp_dir, hashes):
     """Download link url into temp_dir using provided session"""
 
-  
     ## TUF INTEGRATION
     # Get distribution filename
     target_url = link.url.split('#', 1)[0]
     dist_filename = target_url.split('/')[-1]
+    logger.info('Link %s\n Temp dir %s', target_url, temp_dir)
 
     # Refresh Metadata
-    settings.repository_directory = '/path/to/client-repository'
-    repository_mirrors = {'mirror1': {'url_prefix': 'http://54.191.146.167/repository',
-                                      'metadata_path': 'metadata',
-                                      'targets_path': 'targets',
-                                      'confined_target_dirs': ['']}}
+    settings.repository_directory = TUFConfig.repo_path
+    repository_mirrors = TUFConfig.repo_mirrors
+    
     updater = tuf.client.updater.Updater('updater', repository_mirrors)
     updater.refresh()
 
@@ -868,13 +866,13 @@ def _download_http_url(link, session, temp_dir, hashes):
             target_path = target['filepath']
             target_length = target['fileinfo']['length']
             target_hashes = target['fileinfo']['hashes']
-            logger.info('Link %s\n Temp dir %s', dist_filename, temp_dir)
     except:
         logger.critical(
             "Error : target not found. Exiting."
         )
         raise
-    
+
+    # PyPI Download Code - To be removed once TUF integration is complete
     try:
         resp = session.get(
             target_url,
@@ -926,13 +924,12 @@ def _download_http_url(link, session, temp_dir, hashes):
         if ext:
             filename += ext
 
-            
-    file_path = os.path.join(temp_dir, dist_filename)
-
-    # Prevent download from PyPI
+    # Stop PyPI from downloading packages, let TUF do it
     # with open(file_path, 'wb') as content_file:
     #     _download_url(resp, link, content_file, hashes)
 
+    # Path of the package downloaded by TUF
+    file_path = os.path.join(temp_dir, dist_filename)
 
     return file_path, content_type
 
